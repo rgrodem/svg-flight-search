@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG Flyavgangssøk</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-blue-900 mb-2">SVG Flyavgangssøk</h1>
+            <p class="text-gray-600">Søk etter flyavganger og -ankomster fra/til Stavanger Lufthavn</p>
+        </header>
+
+        <!-- Søkeseksjon -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <div class="mb-6">
+                <h2 class="text-xl font-semibold mb-4">Velg periode</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Fra dato:</label>
+                        <input type="date" id="fraDato" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Til dato:</label>
+                        <input type="date" id="tilDato" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <!-- Fra flyplasser -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-3">Fra flyplasser</h3>
+                    <div id="fraFlyplasser" class="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3"></div>
+                </div>
+
+                <!-- Til flyplasser -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-3">Til flyplasser</h3>
+                    <div id="tilFlyplasser" class="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3"></div>
+                </div>
+            </div>
+
+            <!-- Feilmelding -->
+            <div id="feilmelding" class="hidden mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg"></div>
+
+            <!-- Søkeknapp -->
+            <button id="sokKnapp" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200">
+                Søk etter flyvninger
+            </button>
+        </div>
+
+        <!-- Laster-indikator -->
+        <div id="lasterIndikator" class="hidden text-center py-8">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <p class="mt-4 text-gray-600">Henter flydata...</p>
+        </div>
+
+        <!-- Resultatseksjon -->
+        <div id="resultatSeksjon" class="hidden">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold text-gray-800">Resultater</h2>
+                    <span id="antallResultater" class="text-gray-600 font-medium"></span>
+                </div>
+                <div id="resultatListe"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Liste over flyplasser
+        const flyplasser = [
+            { kode: 'SVG', navn: 'Stavanger' },
+            { kode: 'OSL', navn: 'Oslo' },
+            { kode: 'BGO', navn: 'Bergen' },
+            { kode: 'TRD', navn: 'Trondheim' },
+            { kode: 'AMS', navn: 'Amsterdam' },
+            { kode: 'CPH', navn: 'København' },
+            { kode: 'ALC', navn: 'Alicante' },
+            { kode: 'GDN', navn: 'Gdansk' },
+            { kode: 'LGW', navn: 'London Gatwick' },
+            { kode: 'STN', navn: 'London Stansted' },
+            { kode: 'LHR', navn: 'London Heathrow' },
+            { kode: 'AGP', navn: 'Malaga' },
+            { kode: 'BCN', navn: 'Barcelona' },
+            { kode: 'MAD', navn: 'Madrid' },
+            { kode: 'CDG', navn: 'Paris Charles de Gaulle' },
+            { kode: 'FRA', navn: 'Frankfurt' },
+            { kode: 'MUC', navn: 'München' },
+            { kode: 'ZRH', navn: 'Zürich' },
+            { kode: 'BRU', navn: 'Brussel' },
+            { kode: 'VIE', navn: 'Wien' },
+            { kode: 'WAW', navn: 'Warszawa' },
+            { kode: 'PRG', navn: 'Praha' },
+            { kode: 'DUB', navn: 'Dublin' },
+            { kode: 'KEF', navn: 'Reykjavik' },
+            { kode: 'HEL', navn: 'Helsinki' },
+            { kode: 'ARN', navn: 'Stockholm' },
+            { kode: 'GOT', navn: 'Göteborg' }
+        ];
+
+        // Initialiser siden
+        function init() {
+            settStandardDatoer();
+            lagFlyplassCheckboxer();
+            leggTilEventListeners();
+        }
+
+        // Sett standard datoer (i dag og +7 dager)
+        function settStandardDatoer() {
+            const iDag = new Date();
+            const omEnUke = new Date();
+            omEnUke.setDate(iDag.getDate() + 7);
+
+            document.getElementById('fraDato').valueAsDate = iDag;
+            document.getElementById('tilDato').valueAsDate = omEnUke;
+        }
+
+        // Lag checkboxer for flyplasser
+        function lagFlyplassCheckboxer() {
+            const fraContainer = document.getElementById('fraFlyplasser');
+            const tilContainer = document.getElementById('tilFlyplasser');
+
+            flyplasser.forEach(flyplass => {
+                // Fra checkboxer
+                const fraDiv = document.createElement('div');
+                fraDiv.className = 'flex items-center';
+                fraDiv.innerHTML = `
+                    <input type="checkbox" id="fra-${flyplass.kode}" value="${flyplass.kode}"
+                           class="fra-checkbox w-4 h-4 text-blue-600 rounded focus:ring-blue-500" ${flyplass.kode === 'SVG' ? 'checked' : ''}>
+                    <label for="fra-${flyplass.kode}" class="ml-2 text-sm text-gray-700">${flyplass.navn} (${flyplass.kode})</label>
+                `;
+                fraContainer.appendChild(fraDiv);
+
+                // Til checkboxer
+                const tilDiv = document.createElement('div');
+                tilDiv.className = 'flex items-center';
+                tilDiv.innerHTML = `
+                    <input type="checkbox" id="til-${flyplass.kode}" value="${flyplass.kode}"
+                           class="til-checkbox w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
+                    <label for="til-${flyplass.kode}" class="ml-2 text-sm text-gray-700">${flyplass.navn} (${flyplass.kode})</label>
+                `;
+                tilContainer.appendChild(tilDiv);
+            });
+        }
+
+        // Legg til event listeners
+        function leggTilEventListeners() {
+            document.getElementById('sokKnapp').addEventListener('click', sokFlyvninger);
+        }
+
+        // Vis feilmelding
+        function visFeilmelding(melding) {
+            const feilmeldingDiv = document.getElementById('feilmelding');
+            feilmeldingDiv.textContent = melding;
+            feilmeldingDiv.classList.remove('hidden');
+
+            // Skjul etter 5 sekunder
+            setTimeout(() => {
+                feilmeldingDiv.classList.add('hidden');
+            }, 5000);
+        }
+
+        // Skjul feilmelding
+        function skjulFeilmelding() {
+            document.getElementById('feilmelding').classList.add('hidden');
+        }
+
+        // Valider input
+        function validerInput(fraDato, tilDato, fraFlyplasser, tilFlyplasser) {
+            if (fraDato > tilDato) {
+                visFeilmelding('Fra-dato må være før til-dato');
+                return false;
+            }
+
+            if (fraFlyplasser.length === 0) {
+                visFeilmelding('Velg minst én flyplass i "Fra flyplasser"');
+                return false;
+            }
+
+            if (tilFlyplasser.length === 0) {
+                visFeilmelding('Velg minst én flyplass i "Til flyplasser"');
+                return false;
+            }
+
+            return true;
+        }
+
+        // Konverter dato til timer fra nå (for Avinor API)
+        function datoTilTimerFraNaa(dato) {
+            const naa = new Date();
+            const diffMs = dato - naa;
+            const diffTimer = Math.floor(diffMs / (1000 * 60 * 60));
+            return Math.max(0, diffTimer); // Kan ikke være negativ
+        }
+
+        // Hent data fra Avinor API
+        async function hentFlydataFraAPI(timeFrom, timeTo) {
+            const url = `https://flydata.avinor.no/XmlFeed.asp?TimeFrom=${timeFrom}&TimeTo=${timeTo}&airport=SVG`;
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error('Kunne ikke hente data fra API');
+                }
+                const xmlText = await response.text();
+                return parseXML(xmlText);
+            } catch (error) {
+                console.error('API-feil:', error);
+                throw error;
+            }
+        }
+
+        // Parse XML-respons
+        function parseXML(xmlText) {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+            const flights = xmlDoc.getElementsByTagName('flight');
+
+            const flyData = [];
+            for (let flight of flights) {
+                const flightObj = {
+                    uniqueID: getXMLValue(flight, 'uniqueID'),
+                    airline: getXMLValue(flight, 'airline'),
+                    flightId: getXMLValue(flight, 'flight_id'),
+                    airport: getXMLValue(flight, 'airport'),
+                    scheduleTime: getXMLValue(flight, 'schedule_time'),
+                    arrDep: getXMLValue(flight, 'arr_dep'),
+                    statusText: getXMLValue(flight, 'status_text'),
+                    gate: getXMLValue(flight, 'gate')
+                };
+                flyData.push(flightObj);
+            }
+
+            return flyData;
+        }
+
+        // Hjelpe funksjon for å hente XML-verdi
+        function getXMLValue(parent, tagName) {
+            const element = parent.getElementsByTagName(tagName)[0];
+            return element ? element.textContent : '';
+        }
+
+        // Filtrer flydata basert på valgte flyplasser
+        function filtrerFlydata(flydata, fraFlyplasser, tilFlyplasser) {
+            return flydata.filter(fly => {
+                const erAvgang = fly.arrDep === 'D';
+                const erAnkomst = fly.arrDep === 'A';
+
+                if (erAvgang) {
+                    // For avganger: SVG er fra, fly.airport er til
+                    return fraFlyplasser.includes('SVG') && tilFlyplasser.includes(fly.airport);
+                } else if (erAnkomst) {
+                    // For ankomster: fly.airport er fra, SVG er til
+                    return fraFlyplasser.includes(fly.airport) && tilFlyplasser.includes('SVG');
+                }
+
+                return false;
+            });
+        }
+
+        // Sorter flydata etter dato og tid
+        function sorterFlydata(flydata) {
+            return flydata.sort((a, b) => {
+                const datoA = new Date(a.scheduleTime);
+                const datoB = new Date(b.scheduleTime);
+                return datoA - datoB;
+            });
+        }
+
+        // Formater dato
+        function formaterDato(isoString) {
+            const dato = new Date(isoString);
+            const dag = String(dato.getDate()).padStart(2, '0');
+            const maned = String(dato.getMonth() + 1).padStart(2, '0');
+            const ar = dato.getFullYear();
+            return `${dag}.${maned}.${ar}`;
+        }
+
+        // Formater tid
+        function formaterTid(isoString) {
+            const dato = new Date(isoString);
+            const timer = String(dato.getHours()).padStart(2, '0');
+            const minutter = String(dato.getMinutes()).padStart(2, '0');
+            return `${timer}:${minutter}`;
+        }
+
+        // Få flyplassnavn fra kode
+        function getFlyplass navn(kode) {
+            const flyplass = flyplasser.find(f => f.kode === kode);
+            return flyplass ? `${flyplass.navn} (${kode})` : kode;
+        }
+
+        // Vis resultater
+        function visResultater(flydata) {
+            const resultatListe = document.getElementById('resultatListe');
+            const antallResultater = document.getElementById('antallResultater');
+
+            if (flydata.length === 0) {
+                resultatListe.innerHTML = '<p class="text-gray-600 text-center py-8">Ingen resultater funnet</p>';
+                antallResultater.textContent = '0 resultater';
+                return;
+            }
+
+            antallResultater.textContent = `${flydata.length} resultat${flydata.length !== 1 ? 'er' : ''}`;
+
+            // Grupper etter dato
+            const gruppertEtterDato = {};
+            flydata.forEach(fly => {
+                const dato = formaterDato(fly.scheduleTime);
+                if (!gruppertEtterDato[dato]) {
+                    gruppertEtterDato[dato] = [];
+                }
+                gruppertEtterDato[dato].push(fly);
+            });
+
+            // Bygg HTML
+            let html = '';
+            Object.keys(gruppertEtterDato).forEach(dato => {
+                html += `
+                    <div class="mb-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-3 pb-2 border-b-2 border-blue-500">${dato}</h3>
+                        <div class="space-y-2">
+                `;
+
+                gruppertEtterDato[dato].forEach(fly => {
+                    const erAvgang = fly.arrDep === 'D';
+                    const fraFlyplass = erAvgang ? 'SVG' : fly.airport;
+                    const tilFlyplass = erAvgang ? fly.airport : 'SVG';
+
+                    html += `
+                        <div class="bg-gray-50 p-4 rounded-lg hover:bg-gray-100 transition duration-150">
+                            <div class="grid grid-cols-1 md:grid-cols-6 gap-2 text-sm">
+                                <div>
+                                    <span class="font-medium text-gray-700">Tid:</span>
+                                    <span class="text-gray-900">${formaterTid(fly.scheduleTime)}</span>
+                                </div>
+                                <div>
+                                    <span class="font-medium text-gray-700">Fly:</span>
+                                    <span class="text-gray-900">${fly.airline}${fly.flightId}</span>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <span class="font-medium text-gray-700">Fra:</span>
+                                    <span class="text-gray-900">${getFlyplass navn(fraFlyplass)}</span>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <span class="font-medium text-gray-700">Til:</span>
+                                    <span class="text-gray-900">${getFlyplass navn(tilFlyplass)}</span>
+                                </div>
+                                ${fly.gate ? `
+                                <div>
+                                    <span class="font-medium text-gray-700">Gate:</span>
+                                    <span class="text-gray-900">${fly.gate}</span>
+                                </div>
+                                ` : ''}
+                                ${fly.statusText ? `
+                                <div>
+                                    <span class="font-medium text-gray-700">Status:</span>
+                                    <span class="text-orange-600">${fly.statusText}</span>
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+
+            resultatListe.innerHTML = html;
+        }
+
+        // Hovedfunksjon for søk
+        async function sokFlyvninger() {
+            skjulFeilmelding();
+
+            // Hent valgte verdier
+            const fraDato = document.getElementById('fraDato').valueAsDate;
+            const tilDato = document.getElementById('tilDato').valueAsDate;
+
+            const fraCheckboxer = document.querySelectorAll('.fra-checkbox:checked');
+            const tilCheckboxer = document.querySelectorAll('.til-checkbox:checked');
+
+            const fraFlyplasser = Array.from(fraCheckboxer).map(cb => cb.value);
+            const tilFlyplasser = Array.from(tilCheckboxer).map(cb => cb.value);
+
+            // Valider
+            if (!validerInput(fraDato, tilDato, fraFlyplasser, tilFlyplasser)) {
+                return;
+            }
+
+            // Vis laster-indikator
+            document.getElementById('lasterIndikator').classList.remove('hidden');
+            document.getElementById('resultatSeksjon').classList.add('hidden');
+
+            try {
+                // Konverter datoer til timer fra nå
+                const fraDatoStart = new Date(fraDato);
+                fraDatoStart.setHours(0, 0, 0, 0);
+
+                const tilDatoSlutt = new Date(tilDato);
+                tilDatoSlutt.setHours(23, 59, 59, 999);
+
+                const timeFrom = datoTilTimerFraNaa(fraDatoStart);
+                const timeTo = datoTilTimerFraNaa(tilDatoSlutt);
+
+                // Hent data fra API
+                const flydata = await hentFlydataFraAPI(timeFrom, timeTo);
+
+                // Filtrer data
+                const filtrertData = filtrerFlydata(flydata, fraFlyplasser, tilFlyplasser);
+
+                // Sorter data
+                const sortertData = sorterFlydata(filtrertData);
+
+                // Vis resultater
+                visResultater(sortertData);
+
+                // Vis resultatseksjon
+                document.getElementById('resultatSeksjon').classList.remove('hidden');
+
+            } catch (error) {
+                visFeilmelding('En feil oppstod ved henting av flydata. Vennligst prøv igjen senere.');
+                console.error('Feil ved søk:', error);
+            } finally {
+                // Skjul laster-indikator
+                document.getElementById('lasterIndikator').classList.add('hidden');
+            }
+        }
+
+        // Start applikasjonen når siden er lastet
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
+
