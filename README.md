@@ -4,7 +4,7 @@ En enkel webapplikasjon for å søke etter flyavganger og -ankomster fra/til Sta
 
 ## Bruk
 
-Åpne `index.html` i nettleseren eller besøk den deployede versjonen på GitHub Pages.
+Besøk: https://rgrodem.github.io/svg-flight-search/
 
 ## Funksjonalitet
 
@@ -23,14 +23,3 @@ En enkel webapplikasjon for å søke etter flyavganger og -ankomster fra/til Sta
 ## Data
 
 Data hentes i sanntid fra Avinor sitt offisielle API.
-
-## Deployment til GitHub Pages
-
-1. Opprett et nytt repository på GitHub
-2. Push koden til repositoriet
-3. Gå til Settings → Pages
-4. Velg "Deploy from a branch"
-5. Velg "main" branch og "/" root
-6. Klikk Save
-
-Appen vil være tilgjengelig på: `https://[USERNAME].github.io/[REPO-NAME]/`
