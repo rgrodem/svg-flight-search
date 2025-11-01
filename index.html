@@ -107,7 +107,7 @@
             leggTilEventListeners();
         }
 
-        // Sett standard datoer (i dag og i morgen - Avinor API har begrenset fremtidsdata)
+        // Sett standard datoer (i dag og i morgen - kan velge opptil 6 dager frem)
         function settStandardDatoer() {
             const iDag = new Date();
             const iMorgen = new Date();
@@ -197,13 +197,13 @@
 
         // Hent data fra Avinor API via vår egen serverless function
         async function hentFlydataFraAPI(timeFrom, timeTo) {
-            // Avinor API støtter kun de neste 24 timer med TimeFrom/TimeTo
-            // Bruk 0 og 24 for å få alle data for neste 24 timer
+            // Avinor API støtter data for de neste 6 dagene (ca 144 timer)
+            // Vi henter 168 timer (7 dager) for å være sikker på å få alt
             const apiTimeFrom = 0;
-            const apiTimeTo = 48; // Hent 48 timer for å få mer data
+            const apiTimeTo = 168; // Hent 168 timer (7 dager)
 
             console.log('Henter flydata fra Avinor API via serverless function');
-            console.log('Søker etter data fra', timeFrom, 'timer til', timeTo, 'timer (men API begrensning: 0-48 timer)');
+            console.log('Søker etter data fra', timeFrom, 'timer til', timeTo, 'timer (API henter: 0-168 timer)');
 
             try {
                 // Kall vår egen serverless function i stedet for eksterne CORS proxyer
