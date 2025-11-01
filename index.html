@@ -274,6 +274,20 @@
                 flyData.push(flightObj);
             }
 
+            // Debug: Finn tidligste og seneste flyvning
+            if (flyData.length > 0) {
+                const datoer = flyData.map(f => new Date(f.scheduleTime)).sort((a, b) => a - b);
+                const forsteDato = datoer[0];
+                const sisteDato = datoer[datoer.length - 1];
+                const iDag = new Date();
+                const dagerFrem = Math.ceil((sisteDato - iDag) / (1000 * 60 * 60 * 24));
+
+                console.log('📅 DATO-ANALYSE:');
+                console.log('  Første flyvning:', forsteDato.toISOString());
+                console.log('  Siste flyvning:', sisteDato.toISOString());
+                console.log('  Antall dager frem i tid:', dagerFrem, 'dager');
+            }
+
             return flyData;
         }
 
