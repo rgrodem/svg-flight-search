@@ -75,9 +75,6 @@
         // Liste over flyplasser
         const flyplasser = [
             { kode: 'SVG', navn: 'Stavanger' },
-            { kode: 'OSL', navn: 'Oslo' },
-            { kode: 'BGO', navn: 'Bergen' },
-            { kode: 'TRD', navn: 'Trondheim' },
             { kode: 'AMS', navn: 'Amsterdam' },
             { kode: 'CPH', navn: 'København' },
             { kode: 'ALC', navn: 'Alicante' },
@@ -110,14 +107,14 @@
             leggTilEventListeners();
         }
 
-        // Sett standard datoer (i dag og +7 dager)
+        // Sett standard datoer (i dag og i morgen - Avinor API har begrenset fremtidsdata)
         function settStandardDatoer() {
             const iDag = new Date();
-            const omEnUke = new Date();
-            omEnUke.setDate(iDag.getDate() + 7);
+            const iMorgen = new Date();
+            iMorgen.setDate(iDag.getDate() + 1);
 
             document.getElementById('fraDato').valueAsDate = iDag;
-            document.getElementById('tilDato').valueAsDate = omEnUke;
+            document.getElementById('tilDato').valueAsDate = iMorgen;
         }
 
         // Lag checkboxer for flyplasser
@@ -198,17 +195,46 @@
             return Math.max(0, diffTimer); // Kan ikke være negativ
         }
 
-        // Hent data fra Avinor API
+        // Hent data fra Avinor API via vår egen serverless function
         async function hentFlydataFraAPI(timeFrom, timeTo) {
-            const url = `https://flydata.avinor.no/XmlFeed.asp?TimeFrom=${timeFrom}&TimeTo=${timeTo}&airport=SVG`;
+            // Avinor API støtter kun de neste 24 timer med TimeFrom/TimeTo
+            // Bruk 0 og 24 for å få alle data for neste 24 timer
+            const apiTimeFrom = 0;
+            const apiTimeTo = 48; // Hent 48 timer for å få mer data
+
+            console.log('Henter flydata fra Avinor API via serverless function');
+            console.log('Søker etter data fra', timeFrom, 'timer til', timeTo, 'timer (men API begrensning: 0-48 timer)');
 
             try {
-                const response = await fetch(url);
+                // Kall vår egen serverless function i stedet for eksterne CORS proxyer
+                const apiUrl = `/api/avinor?timeFrom=${apiTimeFrom}&timeTo=${apiTimeTo}&airport=SVG`;
+                console.log('Kaller:', apiUrl);
+
+                const response = await fetch(apiUrl);
+
                 if (!response.ok) {
-                    throw new Error('Kunne ikke hente data fra API');
+                    throw new Error(`API feilet med status ${response.status}`);
                 }
+
                 const xmlText = await response.text();
-                return parseXML(xmlText);
+                console.log('✓ XML hentet, lengde:', xmlText.length);
+
+                const parsedData = parseXML(xmlText);
+                console.log('Totalt antall flyvninger fra API:', parsedData.length);
+
+                // Filtrer basert på brukerens valgte datoer
+                const fraDatoObj = new Date(document.getElementById('fraDato').valueAsDate);
+                fraDatoObj.setHours(0, 0, 0, 0);
+                const tilDatoObj = new Date(document.getElementById('tilDato').valueAsDate);
+                tilDatoObj.setHours(23, 59, 59, 999);
+
+                const filtrertPaaDato = parsedData.filter(fly => {
+                    const flyTid = new Date(fly.scheduleTime);
+                    return flyTid >= fraDatoObj && flyTid <= tilDatoObj;
+                });
+
+                console.log('Etter datofiltrering:', filtrertPaaDato.length, 'flyvninger');
+                return filtrertPaaDato;
             } catch (error) {
                 console.error('API-feil:', error);
                 throw error;
@@ -219,7 +245,20 @@
         function parseXML(xmlText) {
             const parser = new DOMParser();
             const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+
+            // Debug: Sjekk for parse-feil
+            const parseError = xmlDoc.getElementsByTagName('parsererror');
+            if (parseError.length > 0) {
+                console.error('XML parse-feil:', parseError[0].textContent);
+                console.log('Første 500 tegn av XML:', xmlText.substring(0, 500));
+            }
+
             const flights = xmlDoc.getElementsByTagName('flight');
+            console.log('Antall <flight> tags funnet:', flights.length);
+
+            // Debug: Vis rotnode info
+            console.log('XML root element:', xmlDoc.documentElement?.tagName);
+            console.log('Første 1000 tegn av XML:', xmlText.substring(0, 1000));
 
             const flyData = [];
             for (let flight of flights) {
@@ -247,20 +286,31 @@
 
         // Filtrer flydata basert på valgte flyplasser
         function filtrerFlydata(flydata, fraFlyplasser, tilFlyplasser) {
-            return flydata.filter(fly => {
+            console.log('Filtrerer flydata...');
+            console.log('Fra flyplasser:', fraFlyplasser);
+            console.log('Til flyplasser:', tilFlyplasser);
+
+            const filtrert = flydata.filter(fly => {
                 const erAvgang = fly.arrDep === 'D';
                 const erAnkomst = fly.arrDep === 'A';
 
                 if (erAvgang) {
                     // For avganger: SVG er fra, fly.airport er til
-                    return fraFlyplasser.includes('SVG') && tilFlyplasser.includes(fly.airport);
+                    const match = fraFlyplasser.includes('SVG') && tilFlyplasser.includes(fly.airport);
+                    if (match) console.log('Avgang match:', fly.airport, fly.flightId);
+                    return match;
                 } else if (erAnkomst) {
                     // For ankomster: fly.airport er fra, SVG er til
-                    return fraFlyplasser.includes(fly.airport) && tilFlyplasser.includes('SVG');
+                    const match = fraFlyplasser.includes(fly.airport) && tilFlyplasser.includes('SVG');
+                    if (match) console.log('Ankomst match:', fly.airport, fly.flightId);
+                    return match;
                 }
 
                 return false;
             });
+
+            console.log('Filtrert data antall:', filtrert.length);
+            return filtrert;
         }
 
         // Sorter flydata etter dato og tid
@@ -290,7 +340,7 @@
         }
 
         // Få flyplassnavn fra kode
-        function getFlyplass navn(kode) {
+        function getFlyplassnavn(kode) {
             const flyplass = flyplasser.find(f => f.kode === kode);
             return flyplass ? `${flyplass.navn} (${kode})` : kode;
         }
@@ -345,11 +395,11 @@
                                 </div>
                                 <div class="md:col-span-2">
                                     <span class="font-medium text-gray-700">Fra:</span>
-                                    <span class="text-gray-900">${getFlyplass navn(fraFlyplass)}</span>
+                                    <span class="text-gray-900">${getFlyplassnavn(fraFlyplass)}</span>
                                 </div>
                                 <div class="md:col-span-2">
                                     <span class="font-medium text-gray-700">Til:</span>
-                                    <span class="text-gray-900">${getFlyplass navn(tilFlyplass)}</span>
+                                    <span class="text-gray-900">${getFlyplassnavn(tilFlyplass)}</span>
                                 </div>
                                 ${fly.gate ? `
                                 <div>
