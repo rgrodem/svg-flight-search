@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nAdd Vercel serverless function to fix CORS issue\n\n- Created /api/avinor.js serverless function to proxy Avinor API\n- Updated frontend to use serverless function instead of CORS proxies\n- Added vercel.json configuration\n- Fixes issue with external CORS proxies returning HTML instead of XML\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push)",
+      "Bash(npm:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

@@ -28,8 +28,13 @@ export default async function handler(req, res) {
 
         console.log('Henter fra Avinor API:', avinorUrl);
 
-        // Hent data fra Avinor API
-        const response = await fetch(avinorUrl);
+        // Hent data fra Avinor API med riktige headers
+        const response = await fetch(avinorUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'application/xml, text/xml, */*',
+            }
+        });
 
         if (!response.ok) {
             throw new Error(`Avinor API feilet med status ${response.status}`);
@@ -37,6 +42,12 @@ export default async function handler(req, res) {
 
         // Hent XML-data
         const xmlData = await response.text();
+
+        // Sjekk om vi faktisk fikk XML og ikke HTML
+        if (xmlData.includes('<!DOCTYPE html>')) {
+            console.error('Fikk HTML i stedet for XML. Første 500 tegn:', xmlData.substring(0, 500));
+            throw new Error('Avinor API returnerte HTML i stedet for XML');
+        }
 
         console.log('XML hentet, lengde:', xmlData.length);
 
