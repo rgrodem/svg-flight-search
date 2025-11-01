@@ -21,7 +21,7 @@ export default async function handler(req, res) {
 
     try {
         // Hent parametere fra query string
-        const { timeFrom = '0', timeTo = '168', airport = 'SVG' } = req.query;
+        const { timeFrom = '0', timeTo = '2400', airport = 'SVG' } = req.query;
 
         // Bygg Avinor API URL
         const avinorUrl = `https://asrv.avinor.no/XmlFeed/v1.0?TimeFrom=${timeFrom}&TimeTo=${timeTo}&airport=${airport}`;
